@@ -84,11 +84,11 @@ python src/evaluate.py
 
 If you use this code in your research, please cite our paper:
 ```bibtex
-@ARTICLE{Do2024ICL,
+@ARTICLE{Do2025ICL,
   author={Do, Phuc Hao},
   journal={IEEE Communications Letters}, 
   title={AI-Driven Dynamic Resource Management for Satellite Quantum Key Distribution Networks}, 
-  year={2024},
+  year={2025},
   volume={},
   number={},
   pages={},
