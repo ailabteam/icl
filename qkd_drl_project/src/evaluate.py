@@ -1,4 +1,4 @@
-# src/evaluate.py
+# src/evaluate.py (ENHANCED PLOTTING VERSION)
 
 import os
 import glob
@@ -16,19 +16,18 @@ EVAL_ENV_PARAMS = {
     'num_satellites': 50,
     'num_ground_stations': 5,
     'duration_hours': 24,
-    'time_step_minutes': 5 
+    'time_step_minutes': 5
 }
 
-# Find the latest model file to load
 model_dir = "models/"
 list_of_files = glob.glob(os.path.join(model_dir, '*.zip'))
 if not list_of_files:
     raise FileNotFoundError(f"No model .zip file found in '{model_dir}'")
 LATEST_MODEL_PATH = max(list_of_files, key=os.path.getctime)
 
-NUM_EVAL_EPISODES = 5 # Run multiple times for average results
+NUM_EVAL_EPISODES = 5
 
-# --- 2. EVALUATION FUNCTIONS ---
+# --- 2. EVALUATION FUNCTIONS (MODIFIED TO RETURN STD DEV) ---
 def evaluate_agent(model, env, num_episodes):
     all_ep_key_histories = []
     final_buffers_list = []
@@ -44,10 +43,12 @@ def evaluate_agent(model, env, num_episodes):
             ep_key_history.append(info['total_key_generated'])
         all_ep_key_histories.append(ep_key_history)
         final_buffers_list.append(info['key_buffers'])
-    
-    avg_history = np.mean(all_ep_key_histories, axis=0)
-    avg_final_buffers = np.mean(final_buffers_list, axis=0)
-    return avg_history, avg_final_buffers
+
+    mean_history = np.mean(all_ep_key_histories, axis=0)
+    std_history = np.std(all_ep_key_histories, axis=0)
+    mean_final_buffers = np.mean(final_buffers_list, axis=0)
+    std_final_buffers = np.std(final_buffers_list, axis=0)
+    return mean_history, std_history, mean_final_buffers, std_final_buffers
 
 def evaluate_baseline(env, policy_fn, num_episodes):
     all_ep_key_histories = []
@@ -57,82 +58,97 @@ def evaluate_baseline(env, policy_fn, num_episodes):
         key_history = run_baseline(env, policy_fn)
         all_ep_key_histories.append(key_history)
         final_buffers_list.append(env.key_buffers)
-        
-    avg_history = np.mean(all_ep_key_histories, axis=0)
-    avg_final_buffers = np.mean(final_buffers_list, axis=0)
-    return avg_history, avg_final_buffers
 
-# --- 3. MAIN EVALUATION SCRIPT ---
+    mean_history = np.mean(all_ep_key_histories, axis=0)
+    std_history = np.std(all_ep_key_histories, axis=0)
+    mean_final_buffers = np.mean(final_buffers_list, axis=0)
+    std_final_buffers = np.std(final_buffers_list, axis=0)
+    return mean_history, std_history, mean_final_buffers, std_final_buffers
+
+# --- 3. MAIN SCRIPT ---
 if __name__ == '__main__':
     print("Initializing evaluation environment...")
     eval_env = QKDSatelliteEnv(**EVAL_ENV_PARAMS)
     ground_station_names = eval_env.gs_keys
 
-    # --- Evaluate DRL Agent ---
+    # --- Run Evaluations ---
     print(f"Loading trained model from: {LATEST_MODEL_PATH}")
     trained_model = PPO.load(LATEST_MODEL_PATH, env=eval_env)
-    drl_avg_history, drl_final_buffers = evaluate_agent(trained_model, eval_env, NUM_EVAL_EPISODES)
-    
-    # --- Evaluate Baselines ---
-    greedy_avg_history, greedy_final_buffers = evaluate_baseline(eval_env, greedy_policy, NUM_EVAL_EPISODES)
-    random_avg_history, random_final_buffers = evaluate_baseline(eval_env, random_policy, NUM_EVAL_EPISODES)
-    
-    print("\n--- Evaluation Finished ---")
-    print(f"Final Total Key (DRL): {drl_avg_history[-1] / 1e6:.2f} Mbit")
-    print(f"Final Total Key (Greedy): {greedy_avg_history[-1] / 1e6:.2f} Mbit")
-    print(f"Final Total Key (Random): {random_avg_history[-1] / 1e6:.2f} Mbit")
-    
-    # --- 4. PLOTTING AND SAVING FIGURES (ENHANCED VERSION) ---
+
+    drl_mean_h, drl_std_h, drl_mean_b, drl_std_b = evaluate_agent(trained_model, eval_env, NUM_EVAL_EPISODES)
+    greedy_mean_h, greedy_std_h, greedy_mean_b, greedy_std_b = evaluate_baseline(eval_env, greedy_policy, NUM_EVAL_EPISODES)
+    random_mean_h, random_std_h, random_mean_b, random_std_b = evaluate_baseline(eval_env, random_policy, NUM_EVAL_EPISODES)
+
+    print("\n--- Evaluation Finished (Mean Values) ---")
+    print(f"Final Total Key (DRL): {drl_mean_h[-1] / 1e6:.2f} Mbit")
+    print(f"Final Total Key (Greedy): {greedy_mean_h[-1] / 1e6:.2f} Mbit")
+    print(f"Final Total Key (Random): {random_mean_h[-1] / 1e6:.2f} Mbit")
+
+    # --- 4. PROFESSIONAL PLOTTING ---
     results_dir = "results/figures/"
     os.makedirs(results_dir, exist_ok=True)
-    plt.style.use('seaborn-v0_8-whitegrid')
-    
-    # --- Plotting Parameters ---
-    TITLE_FONTSIZE = 16
-    LABEL_FONTSIZE = 14
-    LEGEND_FONTSIZE = 12
-    TICK_FONTSIZE = 12
-    LINE_WIDTH = 3.0
 
-    # === FIGURE 1: CUMULATIVE KEY ===
-    print("\nGenerating and saving Figure 1: Performance Comparison...")
-    fig1, ax1 = plt.subplots(figsize=(8, 5))
-    time_steps = len(drl_avg_history)
-    time_hours = np.linspace(0, EVAL_ENV_PARAMS['duration_hours'], time_steps)
-    
-    ax1.plot(time_hours, drl_avg_history / 1e6, label='DRL Agent (PPO)', linewidth=LINE_WIDTH, color='blue')
-    ax1.plot(time_hours, greedy_avg_history / 1e6, label='Greedy Policy', linewidth=LINE_WIDTH-1, linestyle='--', color='darkorange')
-    ax1.plot(time_hours, random_avg_history / 1e6, label='Random Policy', linewidth=LINE_WIDTH-1, linestyle=':', color='gray')
-    
-    ax1.set_xlabel("Time (hours)", fontsize=LABEL_FONTSIZE, fontweight='bold')
-    ax1.set_ylabel("Cumulative Secret Key (Mbit)", fontsize=LABEL_FONTSIZE, fontweight='bold')
-    ax1.set_title("Performance Comparison of Scheduling Policies", fontsize=TITLE_FONTSIZE, fontweight='bold')
-    ax1.legend(fontsize=LEGEND_FONTSIZE)
-    ax1.tick_params(axis='both', which='major', labelsize=TICK_FONTSIZE)
-    ax1.grid(True)
+    # --- Plotting Style Configuration ---
+    plt.style.use('seaborn-v0_8-paper') # A style designed for scientific papers
+
+
+
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["Times New Roman"], # Dùng Times New Roman thay thế
+        "text.usetex": False, # <-- THAY ĐỔI Ở ĐÂY
+        'axes.labelweight': 'bold',
+        'axes.titleweight': 'bold',
+    })
+
+
+    # === FIGURE 1: CUMULATIVE KEY WITH CONFIDENCE INTERVAL ===
+    print("\nGenerating Figure 1: Performance Comparison...")
+    fig1, ax1 = plt.subplots(figsize=(6, 4)) # Standard figure size for IEEE columns
+    time_hours = np.linspace(0, EVAL_ENV_PARAMS['duration_hours'], len(drl_mean_h))
+
+    # Plot DRL
+    ax1.plot(time_hours, drl_mean_h / 1e6, label='DRL Agent (PPO)', color='royalblue', linewidth=2.5)
+    ax1.fill_between(time_hours, (drl_mean_h - drl_std_h) / 1e6, (drl_mean_h + drl_std_h) / 1e6, color='royalblue', alpha=0.2)
+
+    # Plot Greedy
+    ax1.plot(time_hours, greedy_mean_h / 1e6, label='Greedy Policy', color='darkorange', linestyle='--')
+
+    # Plot Random
+    ax1.plot(time_hours, random_mean_h / 1e6, label='Random Policy', color='gray', linestyle=':')
+
+    ax1.set_xlabel("Time (hours)")
+    ax1.set_ylabel("Cumulative Secret Key (Mbit)")
+    ax1.set_title("Comparison of Scheduling Policies")
+    ax1.legend(loc='upper left')
+    ax1.grid(linestyle='--', alpha=0.6)
     fig1.tight_layout()
-    figure1_path = os.path.join(results_dir, "performance_comparison.png")
-    plt.savefig(figure1_path, dpi=600)
-    print(f"Figure 1 saved to {figure1_path}")
+    figure1_path_pdf = os.path.join(results_dir, "performance_comparison.pdf") # SAVE AS PDF
+    plt.savefig(figure1_path_pdf)
+    print(f"Figure 1 saved to {figure1_path_pdf}")
 
-    # === FIGURE 2: BUFFER FAIRNESS (BAR CHART) ===
-    print("\nGenerating and saving Figure 2: Buffer Fairness...")
-    fig2, ax2 = plt.subplots(figsize=(8, 5))
-    df_buffers = pd.DataFrame({
-        'DRL Agent': drl_final_buffers / 1e6,
-        'Greedy Policy': greedy_final_buffers / 1e6,
-    }, index=ground_station_names)
-    
-    df_buffers.plot(kind='bar', ax=ax2, color=['blue', 'darkorange'], width=0.8, edgecolor='black')
-    
-    ax2.set_xlabel("Ground Stations", fontsize=LABEL_FONTSIZE, fontweight='bold')
-    ax2.set_ylabel("Final Secret Key in Buffer (Mbit)", fontsize=LABEL_FONTSIZE, fontweight='bold')
-    ax2.set_title("Final Key Distribution and Fairness", fontsize=TITLE_FONTSIZE, fontweight='bold')
-    ax2.tick_params(axis='x', rotation=45, labelsize=TICK_FONTSIZE)
-    ax2.tick_params(axis='y', labelsize=TICK_FONTSIZE)
-    ax2.grid(axis='y', linestyle='--')
-    ax2.legend(fontsize=LEGEND_FONTSIZE)
+    # === FIGURE 2: BUFFER FAIRNESS WITH ERROR BARS AND LABELS ===
+    print("\nGenerating Figure 2: Buffer Fairness...")
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+
+    x = np.arange(len(ground_station_names))
+    width = 0.35
+
+    rects1 = ax2.bar(x - width/2, drl_mean_b / 1e6, width, label='DRL Agent', yerr=drl_std_b / 1e6, capsize=5, color='royalblue', edgecolor='black')
+    rects2 = ax2.bar(x + width/2, greedy_mean_b / 1e6, width, label='Greedy Policy', yerr=greedy_mean_b / 1e6, capsize=5, color='darkorange', edgecolor='black')
+
+    ax2.set_xlabel("Ground Stations")
+    ax2.set_ylabel("Final Key in Buffer (Mbit)")
+    ax2.set_title("Final Key Distribution and Fairness")
+    ax2.set_xticks(x, ground_station_names, rotation=45, ha="right")
+    ax2.legend()
+    ax2.grid(axis='y', linestyle='--', alpha=0.6)
+
+    # Add labels on top of bars
+    ax2.bar_label(rects1, padding=3, fmt='%.1f')
+    ax2.bar_label(rects2, padding=3, fmt='%.1f')
+
     fig2.tight_layout()
-    figure2_path = os.path.join(results_dir, "buffer_fairness.png")
-    plt.savefig(figure2_path, dpi=600)
-    print(f"Figure 2 saved to {figure2_path}")
+    figure2_path_pdf = os.path.join(results_dir, "buffer_fairness.pdf") # SAVE AS PDF
+    plt.savefig(figure2_path_pdf)
+    print(f"Figure 2 saved to {figure2_path_pdf}")
