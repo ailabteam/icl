@@ -36,6 +36,9 @@ def greedy_policy(env, obs):
     best_action = env.num_satellites * env.num_ground_stations # "no action"
     max_skr = -1.0
     
+    # --- BIẾN CỜ ĐỂ DEBUG ---
+    found_positive_skr_in_step = False
+
     # Duyệt qua tất cả các hành động kết nối khả thi
     for action in range(env.num_satellites * env.num_ground_stations):
         s_idx = action // env.num_ground_stations
@@ -52,8 +55,22 @@ def greedy_policy(env, obs):
             zenith_rad = np.deg2rad(90.0 - alt.degrees)
             skr = calculate_skr(distance.km, zenith_rad)
             
+            # --- THÊM ĐOẠN DEBUG ---
+            if skr > 0:
+                print(f"[DEBUG-Greedy] Step {env.current_step:03d}: Found link (Sat {s_idx:02d}, GS {g_idx}) with SKR = {skr / 1e3:.2f} kbps")
+                found_positive_skr_in_step = True
+            # --- KẾT THÚC DEBUG ---
+            
             if skr > max_skr:
                 max_skr = skr
                 best_action = action
-                
+    
+    # --- THÊM DEBUG ---
+    # In ra kết luận cho mỗi bước nếu tìm thấy ít nhất một SKR > 0
+    if found_positive_skr_in_step:
+        chosen_s_idx = best_action // env.num_ground_stations
+        chosen_g_idx = best_action % env.num_ground_stations
+        print(f"    -> At Step {env.current_step:03d}, Greedy chose link (Sat {chosen_s_idx:02d}, GS {chosen_g_idx}) with max SKR = {max_skr / 1e3:.2f} kbps")
+    # --- KẾT THÚC DEBUG ---
+            
     return best_action
