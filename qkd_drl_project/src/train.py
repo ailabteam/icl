@@ -12,13 +12,13 @@ from qkd_environment import QKDSatelliteEnv
 
 # --- 1. CONFIGURATION ---
 # Các tham số này có thể được đưa ra file config sau này
-TRAINING_STEPS = 100_000
+TRAINING_STEPS = 300_000
 MODEL_ALGORITHM = PPO
 ENV_PARAMS = {
-    'num_satellites': 10,
+    'num_satellites': 50,
     'num_ground_stations': 5,
     'duration_hours': 24,
-    'time_step_minutes': 5 
+    'time_step_minutes': 5
 }
 
 # --- 2. SETUP DIRECTORIES AND FILENAMES ---
@@ -40,8 +40,8 @@ env = QKDSatelliteEnv(**ENV_PARAMS)
 
 # Callback để lưu model định kỳ
 checkpoint_callback = CheckpointCallback(
-    save_freq=10_000, 
-    save_path=model_dir, 
+    save_freq=10_000,
+    save_path=model_dir,
     name_prefix=model_name
 )
 
@@ -50,8 +50,8 @@ checkpoint_callback = CheckpointCallback(
 # verbose=1 để in ra thông tin huấn luyện
 # device='auto' sẽ tự động chọn GPU nếu có
 model = MODEL_ALGORITHM(
-    'MlpPolicy', 
-    env, 
+    'MlpPolicy',
+    env,
     verbose=1,
     tensorboard_log=log_dir,
     device='auto' # Quan trọng: để sử dụng RTX 4090 của bạn
@@ -67,7 +67,7 @@ print("-" * 50)
 
 # Bắt đầu huấn luyện!
 model.learn(
-    total_timesteps=TRAINING_STEPS, 
+    total_timesteps=TRAINING_STEPS,
     callback=checkpoint_callback,
     tb_log_name=model_name
 )

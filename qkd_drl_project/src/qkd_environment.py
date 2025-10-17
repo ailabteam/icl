@@ -122,35 +122,47 @@ class QKDSatelliteEnv(gym.Env):
         total_generated_key_this_step = 0
 
         # Decode action
+        action_was_valid_link = False
         if action < self.num_satellites * self.num_ground_stations:
             s_idx = action // self.num_ground_stations
             g_idx = action % self.num_ground_stations
-
+            
             sat = self.satellites[s_idx]
             gs = self.ground_stations[self.gs_keys[g_idx]]
-
+            
             # Tính toán SKR cho cặp đã chọn
             difference = sat - gs
             topocentric = difference.at(current_time)
             alt, _, distance = topocentric.altaz()
-
+            
             if alt.degrees > SIM_PARAMS['min_elevation']:
+                action_was_valid_link = True # Đánh dấu hành động này là hợp lệ
                 zenith_rad = np.deg2rad(90.0 - alt.degrees)
                 skr = calculate_skr(distance.km, zenith_rad)
                 generated_key = skr * self.time_step_seconds
-
+                
                 # Cập nhật buffer, không để tràn
                 self.key_buffers[g_idx] = min(self.max_buffer_capacity, self.key_buffers[g_idx] + generated_key)
                 total_generated_key_this_step = generated_key
 
-        # --- Calculate Reward ---
-        # Phần thưởng chính là lượng khóa sinh ra
-        reward = total_generated_key_this_step / 1e6 # Chuẩn hóa reward (ví dụ: Mbits)
+        # --- Calculate Reward (LOGIC MỚI) ---
+        reward = 0
+        # 1. Phần thưởng chính cho việc sinh khóa
+        reward += total_generated_key_this_step / 1e6 # Chuẩn hóa (Mbits)
 
-        # Thêm một thành phần phạt nhỏ cho sự mất cân bằng
+        # 2. Phần thưởng nhỏ cho việc chọn đúng liên kết (dẫn đường)
+        if action_was_valid_link and total_generated_key_this_step == 0:
+            reward += 0.01 # Thưởng nhỏ vì đã chọn đúng, dù SKR thấp
+
+        # 3. Phạt nhỏ cho việc chọn sai liên kết
+        elif not action_was_valid_link and action < self.num_satellites * self.num_ground_stations:
+            reward -= 0.005 # Phạt nhỏ vì chọn sai
+
+        # 4. Thêm một thành phần phạt nhỏ cho sự mất cân bằng
         if np.sum(self.key_buffers) > 0:
             fairness_penalty = np.std(self.key_buffers) / np.mean(self.key_buffers)
-            reward -= fairness_penalty * 0.1 # Trọng số của hình phạt
+            reward -= fairness_penalty * 0.1
+
 
         # --- Check for Termination ---
         terminated = self.current_step >= self.max_steps

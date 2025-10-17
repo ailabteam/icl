@@ -13,7 +13,7 @@ from stable_baselines3 import PPO # Hoặc thuật toán bạn đã dùng
 # --- 1. CONFIGURATION ---
 # Sử dụng cùng cấu hình môi trường như lúc huấn luyện
 EVAL_ENV_PARAMS = {
-    'num_satellites': 10,
+    'num_satellites': 50,
     'num_ground_stations': 5,
     'duration_hours': 24,
     'time_step_minutes': 5 
