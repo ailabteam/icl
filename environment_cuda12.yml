@@ -1,0 +1,23 @@
+name: qkd_drl
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge # Thêm conda-forge để đảm bảo tìm được stable-baselines3 và gymnasium cho Python 3.12
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - matplotlib
+  - scipy
+  - tqdm
+  - pip
+  # Core RL & Simulation Libraries
+  - gymnasium
+  - stable-baselines3
+  - skyfield
+  # PyTorch cho CUDA 12.1/12.2 (tương thích với runtime 12.5 của bạn)
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly # Giữ dòng này để Conda không tự động cài đặt CUDA toolkit nếu đã có
